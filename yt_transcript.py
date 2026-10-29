@@ -4,7 +4,8 @@
 用法範例：
     python yt_transcript.py https://www.youtube.com/watch?v=dQw4w9WgXcQ
     python yt_transcript.py https://youtu.be/dQw4w9WgXcQ --timestamps
-    python yt_transcript.py VIDEO_ID --lang en ja --translate zh-Hant
+    python yt_transcript.py VIDEO_ID --translate zh-Hant
+    python yt_transcript.py VIDEO_ID --lang zh-TW en
     python yt_transcript.py --file urls.txt -o transcripts/
     python yt_transcript.py VIDEO_ID --list-langs
 """
@@ -30,8 +31,6 @@ from youtube_transcript_api import (
 )
 from youtube_transcript_api.proxies import GenericProxyConfig
 
-# 預設語言優先順序：繁中 > 中文 > 簡中 > 英文
-DEFAULT_LANGS = ["zh-TW", "zh-Hant", "zh", "zh-HK", "zh-CN", "zh-Hans", "en", "en-US", "en-GB"]
 
 # 兩句之間停頓超過這麼多秒，就另起一段（僅在不加時間戳記時使用）
 PARAGRAPH_GAP_SECONDS = 2.0
@@ -110,8 +109,30 @@ def make_api(proxy: Optional[str]) -> YouTubeTranscriptApi:
     return YouTubeTranscriptApi()
 
 
-def _pick_transcript(transcript_list, langs: list[str]):
-    """依語言優先順序挑字幕：先找人工字幕，再找自動字幕，最後退而求其次拿任何一個。"""
+def _base_lang(code: str) -> str:
+    return code.split("-")[0].lower()
+
+
+def _pick_original(available):
+    """挑影片原本講的語言。YouTube 的自動字幕是語音辨識產生的，它的語言就是影片的原文；
+    同語言有人工字幕就優先用人工字幕（比較準）。沒有自動字幕時，拿第一個人工字幕。"""
+    generated = [t for t in available if t.is_generated]
+    if not generated:
+        return available[0]
+    spoken = _base_lang(generated[0].language_code)
+    for t in available:
+        if not t.is_generated and _base_lang(t.language_code) == spoken:
+            return t
+    return generated[0]
+
+
+def _pick_transcript(transcript_list, langs: Optional[list[str]]):
+    """沒指定語言時抓原文字幕；有指定時依優先順序找（人工 > 自動），都沒有就退回原文。"""
+    available = list(transcript_list)
+    if not available:
+        raise TranscriptError("這支影片沒有任何字幕（包含自動字幕）。")
+    if not langs:
+        return _pick_original(available)
     try:
         return transcript_list.find_manually_created_transcript(langs)
     except NoTranscriptFound:
@@ -120,17 +141,12 @@ def _pick_transcript(transcript_list, langs: list[str]):
         return transcript_list.find_generated_transcript(langs)
     except NoTranscriptFound:
         pass
-    available = list(transcript_list)
-    if not available:
-        raise TranscriptError("這支影片沒有任何字幕（包含自動字幕）。")
-    # 人工字幕優先
-    available.sort(key=lambda t: t.is_generated)
-    return available[0]
+    return _pick_original(available)
 
 
 def get_transcript(
     video_id: str,
-    langs: list[str],
+    langs: Optional[list[str]] = None,
     translate_to: Optional[str] = None,
     api: Optional[YouTubeTranscriptApi] = None,
 ) -> TranscriptResult:
@@ -271,8 +287,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-f", "--file", help="從文字檔讀取網址清單（一行一個，# 開頭為註解）")
     p.add_argument("-o", "--output-dir", default=".", help="輸出資料夾（預設為目前資料夾）")
     p.add_argument(
-        "-l", "--lang", nargs="+", default=DEFAULT_LANGS,
-        help="字幕語言優先順序，例如 --lang en ja（預設：繁中 > 簡中 > 英文；都沒有就拿任何可用字幕）",
+        "-l", "--lang", nargs="+",
+        help="指定字幕語言優先順序，例如 --lang zh-TW en（預設：抓影片原本講的語言，也就是原文逐字稿）",
     )
     p.add_argument("-t", "--translate", metavar="LANG", help="用 YouTube 自動翻譯成指定語言，例如 zh-Hant")
     p.add_argument("--timestamps", action="store_true", help="每行前面加上時間戳記 [mm:ss]")

@@ -20,8 +20,11 @@ python yt_transcript.py https://www.youtube.com/watch?v=VIDEO_ID
 # 每行加上時間戳記
 python yt_transcript.py https://youtu.be/VIDEO_ID --timestamps
 
-# 指定字幕語言優先順序，並用 YouTube 自動翻譯成繁體中文
-python yt_transcript.py VIDEO_ID --lang en ja --translate zh-Hant
+# 原文逐字稿翻譯成繁體中文（YouTube 自動翻譯）
+python yt_transcript.py VIDEO_ID --translate zh-Hant
+
+# 指定字幕語言優先順序（不要原文時使用）
+python yt_transcript.py VIDEO_ID --lang zh-TW en
 
 # 一次處理很多支影片（urls.txt 一行一個網址），輸出到 transcripts/ 資料夾
 python yt_transcript.py --file urls.txt -o transcripts/
@@ -34,7 +37,7 @@ python yt_transcript.py VIDEO_ID --list-langs
 
 ### 小提醒
 
-- 預設語言順序是 繁中 → 簡中 → 英文，人工字幕優先於自動字幕；都沒有的話會拿影片現有的任何字幕。
+- 預設抓**影片原本講的語言**（原文逐字稿），同語言有人工字幕就優先用人工字幕。想要特定語言用 `--lang`，想看中文用 `--translate zh-Hant`。
 - 影片本身必須有字幕（包含 YouTube 自動產生的字幕）。作者關閉字幕的影片抓不到。
 - YouTube 會擋雲端主機（AWS、GCP 等）的 IP。請在自己的電腦或公司網路執行；真的需要在伺服器上跑，可以加 `--proxy http://user:pass@host:port`。
 

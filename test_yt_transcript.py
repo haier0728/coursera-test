@@ -99,7 +99,29 @@ class GetTranscriptTest(unittest.TestCase):
         self.assertEqual(result.language_code, "zh-TW")
         self.assertFalse(result.is_generated)
 
-    def test_falls_back_to_generated_then_anything(self):
+    def test_default_picks_original_language(self):
+        # 日文影片：自動字幕是日文，另外有人工英文字幕 → 預設應抓日文
+        api = fake_api([
+            FakeTranscript("en", False, EN_SNIPPETS),
+            FakeTranscript("ja", True, [("こんにちは", 0, 1)]),
+        ])
+        result = yt.get_transcript("abcdefghijk", api=api)
+        self.assertEqual(result.language_code, "ja")
+
+        # 同語言有人工字幕時優先用人工字幕
+        api = fake_api([
+            FakeTranscript("en", False, EN_SNIPPETS),
+            FakeTranscript("ja", True, [("こんにちは", 0, 1)]),
+            FakeTranscript("ja-JP", False, [("こんにちは。", 0, 1)]),
+        ])
+        result = yt.get_transcript("abcdefghijk", api=api)
+        self.assertEqual((result.language_code, result.is_generated), ("ja-JP", False))
+
+        # 完全沒有自動字幕時拿第一個人工字幕
+        api = fake_api([FakeTranscript("en", False, EN_SNIPPETS)])
+        self.assertEqual(yt.get_transcript("abcdefghijk", api=api).language_code, "en")
+
+    def test_falls_back_to_generated_then_original(self):
         api = fake_api([FakeTranscript("en", True, EN_SNIPPETS)])
         self.assertTrue(yt.get_transcript("abcdefghijk", ["en"], api=api).is_generated)
 
