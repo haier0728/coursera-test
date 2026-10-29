@@ -350,7 +350,7 @@ __YT_TRANSCRIPT_PY__
 cat > "$HOME/bin/termux-url-opener" <<'__TERMUX_URL_OPENER__'
 #!/data/data/com.termux/files/usr/bin/bash
 # 在 YouTube App 按「分享 → Termux」時，Termux 會執行這支腳本，$1 是分享進來的網址。
-# 逐字稿會存到手機的「下載 / YouTube逐字稿」資料夾，並自動打開。
+# 逐字稿會存到手機的「下載 / YouTube逐字稿」資料夾，畫面上顯示預覽，按 Enter 即可打開。
 
 APP_DIR="$HOME/yt-transcript"
 OUT_DIR="$HOME/storage/downloads/YouTube逐字稿"
@@ -364,20 +364,34 @@ notify() {
 echo "正在抓取逐字稿：$URL"
 notify "開始抓取逐字稿…"
 
-stamp=$(mktemp)
-if python "$APP_DIR/yt_transcript.py" "$URL" -o "$OUT_DIR"; then
-    latest=$(find "$OUT_DIR" -name '*.txt' -newer "$stamp" 2>/dev/null | head -1)
+log=$(mktemp)
+python "$APP_DIR/yt_transcript.py" "$URL" -o "$OUT_DIR" 2>&1 | tee "$log"
+status=${PIPESTATUS[0]}
+# 程式成功時會印出「✅ 標題 → 檔案路徑」，從這行取出路徑
+path=$(sed -n 's/^✅ .* → //p' "$log" | tail -1)
+rm -f "$log"
+
+echo
+if [ "$status" -eq 0 ] && [ -f "$path" ]; then
     notify "逐字稿完成 ✅"
-    if [ -n "$latest" ] && command -v termux-open >/dev/null 2>&1; then
-        termux-open "$latest"
+    echo "📂 位置：我的檔案 › 內部儲存空間 › Download › YouTube逐字稿"
+    echo "📄 檔名：$(basename "$path")"
+    echo
+    echo "──── 預覽 ────"
+    sed -n '7,20p' "$path" | cut -c1-200
+    echo "──────────────"
+    echo
+    read -r -p "按 Enter 打開逐字稿（輸入 q 再按 Enter 直接關閉）：" answer
+    if [ "$answer" != "q" ]; then
+        if ! termux-open --content-type text/plain "$path"; then
+            echo "無法自動打開，請到上面的位置手動開啟。"
+            read -r -p "按 Enter 關閉…" _
+        fi
     fi
 else
     notify "抓取失敗 ❌，請看 Termux 畫面上的說明"
+    read -r -p "按 Enter 關閉…" _
 fi
-
-rm -f "$stamp"
-echo
-read -r -p "按 Enter 關閉…" _
 __TERMUX_URL_OPENER__
 chmod +x "$HOME/bin/termux-url-opener"
 
