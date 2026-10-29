@@ -1,0 +1,30 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# 在 YouTube App 按「分享 → Termux」時，Termux 會執行這支腳本，$1 是分享進來的網址。
+# 逐字稿會存到手機的「下載 / YouTube逐字稿」資料夾，並自動打開。
+
+APP_DIR="$HOME/yt-transcript"
+OUT_DIR="$HOME/storage/downloads/YouTube逐字稿"
+URL="$1"
+
+notify() {
+    # 有裝 Termux:API 就跳出小提示，沒裝也不影響
+    command -v termux-toast >/dev/null 2>&1 && termux-toast "$1"
+}
+
+echo "正在抓取逐字稿：$URL"
+notify "開始抓取逐字稿…"
+
+stamp=$(mktemp)
+if python "$APP_DIR/yt_transcript.py" "$URL" -o "$OUT_DIR"; then
+    latest=$(find "$OUT_DIR" -name '*.txt' -newer "$stamp" 2>/dev/null | head -1)
+    notify "逐字稿完成 ✅"
+    if [ -n "$latest" ] && command -v termux-open >/dev/null 2>&1; then
+        termux-open "$latest"
+    fi
+else
+    notify "抓取失敗 ❌，請看 Termux 畫面上的說明"
+fi
+
+rm -f "$stamp"
+echo
+read -r -p "按 Enter 關閉…" _
