@@ -23,6 +23,13 @@ rm -f "$log"
 
 echo
 if [ "$status" -eq 0 ] && [ -f "$path" ]; then
+    # 通知 Android 有新檔案，否則「我的檔案」的分類 / 搜尋 / 最近檔案都看不到它
+    if command -v termux-media-scan >/dev/null 2>&1; then
+        termux-media-scan "$path" >/dev/null 2>&1
+    else
+        am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE \
+            -d "file://$(realpath "$path")" >/dev/null 2>&1
+    fi
     notify "逐字稿完成 ✅"
     echo "📂 位置：我的檔案 › 內部儲存空間 › Download › YouTube逐字稿"
     echo "📄 檔名：$(basename "$path")"
